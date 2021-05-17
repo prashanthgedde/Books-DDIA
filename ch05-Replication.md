@@ -7,8 +7,9 @@ Why we need to replicate data:
   * Fault tolerance, Increased availabity: Allow system to continue working even if some of its parts have failed.
   * Increase throughput: Scale out num of machines that can serve read queries.
 
-If data is not changing once written, replication is very simple, it just need to write the same data on to other nodes and its done. However, if data changes, managing replication is bit complex.
-3 popular algorithms for replicatig changes between nodes:
+If data is not changing once written, replication is very simple, it just need to write the same data on to other nodes and its done. However, if data changes, managing replication can be complicated.
+
+3 popular algorithms for replicating changes between nodes:
   1. Single-Leader
   2. Multi-Leader and 
   3. Leaderless
@@ -23,9 +24,9 @@ Every write to the database, needs to be processed by every replca; otherwise re
 One common solution for this problem is LEADER BASED REPLICATION (a.k.a active/passive master/slave replication).
 
 Leader based replication works as below:
-  1. One of the replicas is designated as LEADER (master or primary). A write will send requests to the leader, which gets written to leaders local storage first.
+  1. One of the replicas is designated as LEADER (master or primary). Client will send request to the leader, which gets written to leader's local storage first.
   2. Other replicas are called FOLLOWERS (slaves, secondaries or hot-standby). After leader write onto its storage, it sends out the change log on to all of its followers. Each follower takes this log from leader abd update its local copy.
-  3. Client reads either from the leader or any of the followers. Writes are accepted only on the leaser. Followers are read-only from client's point of view.
+  3. Client reads either from the leader or any of the followers. Writes are accepted only on the leader. Followers are read-only from client's point of view.
 
  ## Synchronous vs Async Replication
  In some relation DBs, this is often configurable option, other systems hardcoded to one of them.
@@ -34,13 +35,13 @@ Leader based replication works as below:
      * Disadvantage - If follower doesnt respond, the write cannot be processed. Leader must block all writes and wait until failed replica is available again.
    * Asynchronous: Leader sends message, but does not wait for a response from follower.
 
-It's impactical for all the followers to be synchronous: any onr node outage would cause the whole system to grind to a halt. 
+It's impactical for all the followers to be synchronous: any one node outage would cause the whole system to grind to a halt. 
 
 In practice, enabling synchrounous replication on a db, it usually means one of the followers is sync and others are async. If sync follower becomes unavailable or slow, one of the async followers is made sync. This guarantees that you have an up-to-date consistent copy of the data on atleast 2 nodes - the leader and one sync follower. This is called SEMI-SYNCHRONOUS replication.
 
 In case of completely async replication, if the leader fails and is not recoverable, any writes that have not yet been replicated to followers are lost. This means no durability. 
 
-Weakening durability may sound like bad trade-off, but async replivation is widely used, especially if there are many followers.
+Weakening durability may sound like bad trade-off, but async replication is widely used, especially if there are many followers.
 
 ## Setting up new Followers
 When new followers need to be added  (either for increasing replicas or to replace failed nodes), how to ensure the new follower has accurate copy of leader's data?
@@ -59,7 +60,7 @@ How to achieve HIGH AVAILABILITY with leader-based replication?
 Each follower keeps log of data changes it has received from leader. If a follower crashes and is restsrted, or if network connection is temporarily interrupted, the follower can recover from its logs - it knows the last transaction that was processed before the fault. Thus follower can connect to the leader and request all the data changes since the failure.
 
 ### Leader failure (FAIOVER)
-Handling failure of the leader is tricker: 
+Handling failure of the leader is tricky: 
   1. One of the follower needs to be promoted as the new leader.
   2. Clients need to be reconfigured to send writes to this new leader and 
   3. Other followers need to start consuming data changes from the new leader. 
@@ -87,9 +88,17 @@ This can break :
 Older version of MYSQL used this but discouraged as this has above issues.
 
 ### Write-ahead log (WAL)
+Low level logs capturing each change to DB.
+* WAL is an append-only sequence of bytes containing all writes to the DB.
+* The same log can be used to build a replica on another node
+* One prblem with this problem - WAL contains details of which bytes were changed in which disk blocks. This makes the replication closely coupled to the storage engine. If DB changes its storage format from one version to another.
 
 ### Logical (row-based) log replication
+To decouple from the storage engine formats and internals, this format of log uses - LOGICAL LOG. A LOGICAL LOG for a DB is usually a sequence of records describing writes to DB tables at a granularity of a row:
+
+MySQL's BINLOG (when configured t use row-based replication) uses this approach.
 
 ### Trigger based replication
+
 
 
